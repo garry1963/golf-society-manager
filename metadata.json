@@ -1,0 +1,8 @@
+{
+  "name": "FairwayConnect: Golf Society Manager",
+  "description": "A comprehensive management suite for golf societies featuring member tracking, event scheduling, automated pairings, and AI-powered performance analysis.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

@@ -1,8 +1,8 @@
 
 import { GoogleGenAI } from "@google/genai";
+import { GroundingSource } from "../types";
 
-export const getGolfAdvice = async (query: string, context?: any) => {
-  // Always use process.env.API_KEY directly as per guidelines
+export const getGolfAdvice = async (query: string, useSearch: boolean = false) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const systemInstruction = `
@@ -10,36 +10,48 @@ export const getGolfAdvice = async (query: string, context?: any) => {
     You have deep knowledge of R&A and USGA rules, handicap systems (WHS), and golf psychology.
     Your tone is encouraging, professional, yet witty.
     
-    When suggesting pairings: 
-    - Mix high and low handicaps for balance OR group similar for competition.
-    - Consider social dynamics.
-    
-    When giving tips:
-    - Be specific (driving, putting, short game).
-    - Use golf terminology correctly.
-    
-    If the user asks for help with the society software:
-    - Explain features like Event Management, Member Tracking, and Scoring.
+    If Google Search is enabled, use it to find the latest news, tournament results, or equipment reviews.
+    Always prioritize accuracy and recent developments in the golf world.
   `;
 
   try {
+    const config: any = {
+      systemInstruction,
+      temperature: 0.7,
+    };
+
+    if (useSearch) {
+      config.tools = [{ googleSearch: {} }];
+    }
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: query,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      },
+      config,
     });
-    return response.text;
+
+    const text = response.text || "I'm sorry, I couldn't process that.";
+    const sources: GroundingSource[] = [];
+
+    // Extract grounding chunks as per guidelines
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    groundingChunks.forEach((chunk: any) => {
+      if (chunk.web) {
+        sources.push({
+          title: chunk.web.title || "Web Source",
+          uri: chunk.web.uri,
+        });
+      }
+    });
+
+    return { text, sources };
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Sorry, I'm currently stuck in the bunker. Please try again later!";
+    return { text: "Sorry, I'm currently stuck in the bunker. Please try again later!", sources: [] };
   }
 };
 
 export const generateEventReminder = async (eventTitle: string, course: string, date: string, participantsCount: number) => {
-  // Always use process.env.API_KEY directly as per guidelines
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `Write a witty and professional email/in-app reminder for a golf society outing. 

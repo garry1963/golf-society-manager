@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { 
@@ -33,7 +34,8 @@ import {
   CloudCheck,
   Signal,
   ShieldAlert,
-  ArrowRightLeft
+  ArrowRightLeft,
+  BookOpen
 } from 'lucide-react';
 import CourseSpecsDisplay from './CourseSpecsDisplay';
 import { CourseSpecs, Facility, CourseDatabaseEntry, GroundingSource } from '../types';
@@ -78,8 +80,9 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
   const [loading, setLoading] = useState(false);
   const [searchPhase, setSearchPhase] = useState<string>('');
   const [results, setResults] = useState<CourseResult[]>([]);
+  const [intelResult, setIntelResult] = useState<{ text: string, sources: GroundingSource[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'search' | 'registry' | 'database'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'registry' | 'database' | 'intel'>('search');
   
   const [selectedCourse, setSelectedCourse] = useState<CourseResult | null>(null);
   const [fetchingSpecs, setFetchingSpecs] = useState(false);
@@ -106,9 +109,50 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
     );
   }, [dbSearchQuery, courseDatabase]);
 
+  const handleIntelSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+
+    setLoading(true);
+    setError(null);
+    setIntelResult(null);
+    setSearchPhase('Web Intelligence: Accessing Global Golf Network...');
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: query,
+        config: {
+          systemInstruction: "You are a golf industry analyst. Provide detailed, up-to-date information on the user's query using Google Search. Focus on the latest news, tournament results, and equipment specs.",
+          tools: [{ googleSearch: {} }]
+        },
+      });
+
+      const text = response.text || "No intelligence found for this query.";
+      const sources: GroundingSource[] = [];
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      chunks.forEach((chunk: any) => {
+        if (chunk.web) sources.push({ title: chunk.web.title || "Web Source", uri: chunk.web.uri });
+      });
+
+      setIntelResult({ text, sources });
+    } catch (err: any) {
+      setError(`Intel Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+      setSearchPhase('');
+    }
+  };
+
   const handleSearch = async (e: React.FormEvent, forceLive: boolean = false) => {
     if (e) e.preventDefault();
     if (!query.trim()) return;
+
+    if (activeTab === 'intel') {
+      handleIntelSearch(e);
+      return;
+    }
 
     if (!forceLive && localDatabaseMatches.length > 0) {
       const convertedResults: CourseResult[] = localDatabaseMatches.map(c => ({
@@ -318,13 +362,22 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
       <div className="flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-1 p-1 bg-slate-200/50 w-fit rounded-2xl">
           <button 
-            onClick={() => setActiveTab('search')}
+            onClick={() => { setActiveTab('search'); setIntelResult(null); }}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
               activeTab === 'search' ? 'bg-[#00843D] text-white shadow-xl' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             <Zap className="w-4 h-4" />
-            GolfNow Bridge
+            Course Bridge
+          </button>
+          <button 
+            onClick={() => setActiveTab('intel')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+              activeTab === 'intel' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            Web Intelligence
           </button>
           <button 
             onClick={() => setActiveTab('database')}
@@ -366,31 +419,41 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
         )}
       </div>
 
-      {activeTab === 'search' ? (
+      {(activeTab === 'search' || activeTab === 'intel') && (
         <>
           {/* Main Search Interface */}
           {!currentSpecs && !fetchingSpecs && (
-            <div className="bg-slate-950 rounded-[3rem] p-12 text-white relative overflow-hidden shadow-2xl border border-white/5 group">
-              <div className="absolute right-0 top-0 w-1/2 h-full opacity-[0.03] pointer-events-none group-hover:opacity-[0.05] transition-opacity"><Server className="w-full h-full" /></div>
+            <div className={`rounded-[3rem] p-12 text-white relative overflow-hidden shadow-2xl border border-white/5 group transition-all duration-700 ${activeTab === 'intel' ? 'bg-blue-950' : 'bg-slate-950'}`}>
+              <div className="absolute right-0 top-0 w-1/2 h-full opacity-[0.03] pointer-events-none group-hover:opacity-[0.05] transition-opacity">
+                {activeTab === 'intel' ? <Globe className="w-full h-full" /> : <Server className="w-full h-full" />}
+              </div>
               <div className="relative z-10 max-w-4xl">
                 <div className="flex items-center gap-4 mb-10">
-                  <div className="bg-[#00843D] p-4 rounded-3xl shadow-lg shadow-[#00843D]/20"><Activity className="w-8 h-8 text-white" /></div>
+                  <div className={`p-4 rounded-3xl shadow-lg ${activeTab === 'intel' ? 'bg-blue-600' : 'bg-[#00843D]'}`}>
+                    {activeTab === 'intel' ? <Globe className="w-8 h-8 text-white" /> : <Activity className="w-8 h-8 text-white" />}
+                  </div>
                   <div>
-                    <h3 className="text-sm font-black text-[#00843D] uppercase tracking-[0.4em]">Official GolfNow Grounding</h3>
+                    <h3 className={`text-sm font-black uppercase tracking-[0.4em] ${activeTab === 'intel' ? 'text-blue-400' : 'text-[#00843D]'}`}>
+                      {activeTab === 'intel' ? 'Global Web Intelligence' : 'Official GolfNow Grounding'}
+                    </h3>
                     <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                      <span className="w-2 h-2 rounded-full bg-[#00843D] animate-pulse"></span>
-                      Verified UK & Ireland Source
+                      <span className={`w-2 h-2 rounded-full animate-pulse ${activeTab === 'intel' ? 'bg-blue-500' : 'bg-[#00843D]'}`}></span>
+                      {activeTab === 'intel' ? 'Real-time Web Grounding Active' : 'Verified UK & Ireland Source'}
                     </div>
                   </div>
                 </div>
                 
-                <h2 className="text-6xl font-black mb-8 tracking-tighter italic leading-none">Scout Venues</h2>
+                <h2 className="text-6xl font-black mb-8 tracking-tighter italic leading-none">
+                  {activeTab === 'intel' ? 'Golf Discovery' : 'Scout Venues'}
+                </h2>
                 <form onSubmit={handleSearch} className="relative group/form">
-                  <div className="absolute left-7 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within/form:text-[#00843D] transition-colors"><Fingerprint className="w-8 h-8" /></div>
+                  <div className="absolute left-7 top-1/2 -translate-y-1/2 text-slate-600 transition-colors group-focus-within/form:text-white">
+                    {activeTab === 'intel' ? <Search className="w-8 h-8" /> : <Fingerprint className="w-8 h-8" />}
+                  </div>
                   <input 
                     type="text" 
-                    placeholder="Search by Course, City or Region..."
-                    className="w-full pl-20 pr-48 py-8 bg-black/40 border-2 border-slate-800 rounded-[2rem] text-xl font-bold outline-none focus:ring-8 focus:ring-[#00843D]/10 focus:border-[#00843D] transition-all placeholder:text-slate-800"
+                    placeholder={activeTab === 'intel' ? "Search for latest news, rules, or gear..." : "Search by Course, City or Region..."}
+                    className="w-full pl-20 pr-48 py-8 bg-black/40 border-2 border-slate-800 rounded-[2rem] text-xl font-bold outline-none focus:ring-8 focus:ring-white/5 focus:border-white/20 transition-all placeholder:text-slate-800"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
@@ -398,45 +461,79 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
                     <button 
                       type="submit"
                       disabled={loading}
-                      className="bg-[#00843D] text-white font-black py-5 px-10 rounded-2xl transition-all flex items-center gap-3 shadow-2xl hover:bg-[#006e33] active:scale-95 disabled:opacity-50"
+                      className={`text-white font-black py-5 px-10 rounded-2xl transition-all flex items-center gap-3 shadow-2xl active:scale-95 disabled:opacity-50 ${activeTab === 'intel' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-[#00843D] hover:bg-[#006e33]'}`}
                     >
                       {loading ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Search className="w-6 h-6" />}
-                      Sync
+                      {activeTab === 'intel' ? 'Discover' : 'Sync'}
                     </button>
-                    {localDatabaseMatches.length > 0 && (
-                      <button 
-                        type="button"
-                        onClick={(e) => handleSearch(e as any, true)}
-                        className="bg-slate-800 text-slate-400 hover:text-white font-black px-5 rounded-2xl transition-all border border-slate-700 active:scale-95"
-                        title="Force Remote Refresh"
-                      >
-                        <Globe className="w-6 h-6" />
-                      </button>
-                    )}
                   </div>
                 </form>
 
                 <div className="mt-8 flex items-center justify-between">
                   {loading ? (
-                    <div className="flex items-center gap-4 text-[#00843D]">
+                    <div className={`flex items-center gap-4 ${activeTab === 'intel' ? 'text-blue-400' : 'text-[#00843D]'}`}>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <p className="text-xs font-black uppercase tracking-[0.2em] italic">{searchPhase}</p>
                     </div>
-                  ) : localDatabaseMatches.length > 0 ? (
-                    <div className="flex items-center gap-2 text-[#00843D]/60 animate-in fade-in duration-500">
-                      <Database className="w-4 h-4" />
-                      <p className="text-[10px] font-black uppercase tracking-widest">{localDatabaseMatches.length} Matching Records in Local Sync</p>
-                    </div>
                   ) : (
-                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Grounding Search: www.golfnow.co.uk</p>
+                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                      {activeTab === 'intel' ? 'Grounding Search via Global Web Resources' : 'Grounding Search: www.golfnow.co.uk'}
+                    </p>
                   )}
                 </div>
               </div>
             </div>
           )}
 
+          {/* Web Intel Results */}
+          {activeTab === 'intel' && intelResult && (
+            <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-700 max-w-5xl mx-auto">
+              <div className="bg-white rounded-[3rem] p-12 border border-slate-100 shadow-xl relative overflow-hidden">
+                <div className="absolute -right-12 -top-12 p-12 opacity-5 text-blue-900"><BookOpen className="w-48 h-48" /></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="p-3 bg-blue-50 rounded-2xl text-blue-600 shadow-sm"><Globe className="w-6 h-6" /></div>
+                    <div>
+                      <h3 className="text-2xl font-black italic text-slate-900 tracking-tight">Intelligence Report</h3>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified Grounded Data Packet</p>
+                    </div>
+                  </div>
+                  
+                  <div className="prose prose-slate max-w-none mb-12">
+                    <p className="text-lg leading-relaxed text-slate-700 font-medium whitespace-pre-wrap">{intelResult.text}</p>
+                  </div>
+
+                  <div className="pt-10 border-t border-slate-100">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                      <LinkIcon className="w-4 h-4 text-blue-500" /> Grounded Intelligence Sources
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {intelResult.sources.map((source, sIdx) => (
+                        <a 
+                          key={sIdx}
+                          href={source.uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-5 bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 rounded-2xl transition-all group"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-500 shadow-sm group-hover:scale-110 transition-transform">
+                              <Globe className="w-5 h-5" />
+                            </div>
+                            <span className="text-sm font-black text-slate-800 line-clamp-1">{source.title}</span>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Scorecard Syncing State */}
-          {(fetchingSpecs || currentSpecs) && selectedCourse && (
+          {(fetchingSpecs || currentSpecs) && selectedCourse && activeTab === 'search' && (
             <div className="max-w-5xl mx-auto py-4">
               {fetchingSpecs ? (
                 <div className="bg-slate-950 rounded-[4rem] p-32 shadow-2xl border border-white/5 flex flex-col items-center justify-center text-center">
@@ -455,22 +552,8 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
             </div>
           )}
 
-          {/* Error Message */}
-          {error && !currentSpecs && !fetchingSpecs && (
-            <div className="bg-rose-950/40 border-2 border-rose-900/50 p-10 rounded-[3rem] flex items-center justify-between text-white animate-in zoom-in-95 duration-300">
-              <div className="flex items-center gap-6">
-                <ShieldAlert className="w-8 h-8 text-rose-400" />
-                <div>
-                  <h4 className="font-black text-rose-100 text-xl uppercase tracking-tight">Sync Handshake Failure</h4>
-                  <p className="text-rose-300 font-bold mt-1">{error}</p>
-                </div>
-              </div>
-              <button onClick={() => setError(null)} className="p-4 hover:bg-rose-900 rounded-2xl transition-colors"><X className="w-8 h-8" /></button>
-            </div>
-          )}
-
-          {/* Result Grid */}
-          {results.length > 0 && !currentSpecs && !fetchingSpecs && (
+          {/* Result Grid for Course Search */}
+          {activeTab === 'search' && results.length > 0 && !currentSpecs && !fetchingSpecs && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20 animate-in slide-in-from-bottom-8 duration-700">
               {results.map((course) => {
                 const isAlreadySaved = savedFacilities.some(f => f.name === course.title);
@@ -492,10 +575,6 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
                           </div>
                         )}
                       </div>
-                      <div className="absolute top-6 right-6 px-3 py-2 rounded-xl bg-white/5 backdrop-blur-md border border-white/10 flex items-center gap-2 text-emerald-400">
-                        <Navigation className="w-3 h-3" />
-                        <span className="text-[9px] font-black uppercase tracking-widest">{course.dotgolfStatus || 'CONNECTED'}</span>
-                      </div>
                     </div>
                     
                     <div className="p-10 flex-1 flex flex-col">
@@ -512,28 +591,6 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
                         <p className="text-[11px] font-bold text-slate-500 leading-relaxed italic">"{course.insight || "Verified WHS facility via the GolfNow Bridge."}"</p>
                       </div>
 
-                      {course.groundingSources && course.groundingSources.length > 0 && (
-                        <div className="mb-8 p-4 bg-emerald-50/30 rounded-2xl border border-emerald-100">
-                          <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                            <LinkIcon className="w-3 h-3" /> Verified Sources
-                          </p>
-                          <div className="space-y-2">
-                            {course.groundingSources.slice(0, 2).map((source, sIdx) => (
-                              <a 
-                                key={sIdx} 
-                                href={source.uri} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center justify-between text-[10px] font-bold text-slate-600 hover:text-[#00843D] transition-colors group/link"
-                              >
-                                <span className="truncate max-w-[150px]">{source.title}</span>
-                                <ExternalLink className="w-3 h-3 group-hover/link:translate-x-0.5 transition-transform" />
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
                       <div className="space-y-4 mt-auto">
                         <div className="grid grid-cols-2 gap-4">
                           <button onClick={() => handleRegistryAdd(course)} disabled={isAlreadySaved} className={`flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${isAlreadySaved ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-white text-slate-600 border-slate-200 shadow-sm hover:border-slate-300 active:scale-95'}`}>
@@ -556,7 +613,9 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
             </div>
           )}
         </>
-      ) : activeTab === 'database' ? (
+      )}
+
+      {activeTab === 'database' ? (
         <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-700">
           <div className="bg-slate-900 rounded-[3.5rem] p-12 text-white border border-white/5 shadow-2xl overflow-hidden relative">
             <div className="absolute right-0 top-0 p-12 opacity-[0.03] pointer-events-none rotate-12"><HardDrive className="w-64 h-64" /></div>
@@ -633,7 +692,7 @@ const CourseSearch: React.FC<CourseSearchProps> = ({
             )}
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'registry' && (
         <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm animate-in slide-in-from-bottom-8 duration-700">
           <div className="flex items-center justify-between mb-16">
             <div>

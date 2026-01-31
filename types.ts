@@ -6,7 +6,8 @@ export enum AppView {
   SEASONS = 'SEASONS',
   COURSES = 'COURSES',
   STATS = 'STATS',
-  AI_PRO = 'AI_PRO'
+  AI_PRO = 'AI_PRO',
+  SEARCH = 'SEARCH'
 }
 
 export interface CourseSpecs {
@@ -110,4 +111,10 @@ export interface SocietyStats {
   totalMembers: number;
   upcomingEvents: number;
   totalRoundsPlayed: number;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: GroundingSource[];
 }

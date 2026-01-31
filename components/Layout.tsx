@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { AppView } from '../types';
+import { AppView, Event as GolfEvent } from '../types';
 import { 
   LayoutDashboard, 
   Users, 
@@ -19,9 +19,10 @@ interface LayoutProps {
   children: React.ReactNode;
   activeView: AppView;
   setActiveView: (view: AppView) => void;
+  nextEvent?: GolfEvent | null;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeView, setActiveView }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeView, setActiveView, nextEvent }) => {
   const menuItems = [
     { view: AppView.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { view: AppView.MEMBERS, label: 'Members', icon: Users },
@@ -34,10 +35,14 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setActiveView }) 
 
   const activeLabel = menuItems.find(i => i.view === activeView)?.label;
 
+  const formattedDate = nextEvent 
+    ? new Date(nextEvent.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    : '';
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 text-white flex flex-col z-50 shadow-2xl">
+      <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 text-white flex flex-col z-50 shadow-2xl no-print">
         <div className="p-6 flex items-center gap-3">
           <div className="bg-emerald-500 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
             <Trophy className="w-6 h-6 text-white" />
@@ -109,13 +114,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setActiveView }) 
             </div>
 
             <div className="flex items-center gap-6 animate-in fade-in slide-in-from-right-8 duration-700">
-              <div className="hidden lg:flex flex-col items-end px-6 py-3 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl">
+              <button 
+                onClick={() => setActiveView(AppView.EVENTS)}
+                className="hidden lg:flex flex-col items-end px-6 py-3 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl hover:bg-white/20 transition-all active:scale-95 text-right group"
+              >
                 <div className="flex items-center gap-2 mb-1">
-                  <Calendar className="w-3 h-3 text-emerald-400" />
+                  <Calendar className={`w-3 h-3 text-emerald-400 ${nextEvent ? 'animate-pulse' : ''}`} />
                   <p className="text-[10px] text-white/60 font-black uppercase tracking-widest">Next Tournament</p>
                 </div>
-                <p className="text-sm font-black tracking-tight">Spring Classic • May 15</p>
-              </div>
+                <p className="text-sm font-black tracking-tight group-hover:text-emerald-400 transition-colors">
+                  {nextEvent ? `${nextEvent.title} • ${formattedDate}` : 'No Upcoming Events'}
+                </p>
+              </button>
               
               <button className="p-3 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 group">
                 <Bell className="w-5 h-5 group-hover:animate-bounce" />

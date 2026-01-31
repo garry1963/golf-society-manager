@@ -77,6 +77,7 @@ export interface Event {
   numberOfRounds?: number;
   courseName: string;
   location: string;
+  facilityId?: string;
   status: 'upcoming' | 'completed';
   participants: string[]; // Member IDs
   results?: { memberId: string; score: number }[];

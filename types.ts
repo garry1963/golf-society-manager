@@ -22,6 +22,11 @@ export interface CourseSpecs {
   holePars: number[];
 }
 
+export interface GroundingSource {
+  title: string;
+  uri: string;
+}
+
 export interface Facility {
   id: string;
   name: string;
@@ -31,6 +36,20 @@ export interface Facility {
   courseStyle: string;
   difficulty: string;
   addedAt: string;
+  groundingSources?: GroundingSource[];
+}
+
+export interface CourseDatabaseEntry {
+  title: string;
+  address: string;
+  whsId: string;
+  difficulty: 'Easy' | 'Moderate' | 'Challenging' | 'Elite';
+  courseStyle: string;
+  isvVerified: boolean;
+  lastSynced: string;
+  uri: string;
+  insight: string;
+  groundingSources?: GroundingSource[];
 }
 
 export type ScoringSystem = 'points' | 'stableford' | 'medal';

@@ -7,7 +7,7 @@ import Events from './components/Events';
 import Seasons from './components/Seasons';
 import CourseSearch from './components/CourseSearch';
 import AIPro from './components/AIPro';
-import { AppView, Facility, Event as GolfEvent, Member, Season } from './types';
+import { AppView, Facility, Event as GolfEvent, Member, Season, CourseDatabaseEntry } from './types';
 import { MOCK_EVENTS, MOCK_MEMBERS, MOCK_SEASONS } from './constants';
 
 const App: React.FC = () => {
@@ -34,32 +34,30 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [courseDatabase, setCourseDatabase] = useState<CourseDatabaseEntry[]>(() => {
+    const saved = localStorage.getItem('fairway_course_db');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [prefilledEvent, setPrefilledEvent] = useState<{ courseName: string, location: string, facilityId?: string } | null>(null);
 
-  // --- Persistence & Sync ---
+  // --- Persistence ---
   useEffect(() => {
     localStorage.setItem('fairway_events', JSON.stringify(events));
     localStorage.setItem('fairway_members', JSON.stringify(members));
     localStorage.setItem('fairway_seasons', JSON.stringify(seasons));
     localStorage.setItem('fairway_facilities', JSON.stringify(facilities));
-    // Dispatch custom event for cross-tab sync if needed, though props handle same-tab sync
-    window.dispatchEvent(new Event('storage'));
-  }, [events, members, seasons, facilities]);
+    localStorage.setItem('fairway_course_db', JSON.stringify(courseDatabase));
+  }, [events, members, seasons, facilities, courseDatabase]);
 
-  // Sync state from localStorage if changed elsewhere (e.g., other tabs)
+  // Sync state from other tabs/windows only
   useEffect(() => {
-    const handleStorageChange = () => {
-      const savedEvents = localStorage.getItem('fairway_events');
-      if (savedEvents) setEvents(JSON.parse(savedEvents));
-      
-      const savedMembers = localStorage.getItem('fairway_members');
-      if (savedMembers) setMembers(JSON.parse(savedMembers));
-      
-      const savedSeasons = localStorage.getItem('fairway_seasons');
-      if (savedSeasons) setSeasons(JSON.parse(savedSeasons));
-      
-      const savedFacilities = localStorage.getItem('fairway_facilities');
-      if (savedFacilities) setFacilities(JSON.parse(savedFacilities));
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'fairway_events' && e.newValue) setEvents(JSON.parse(e.newValue));
+      if (e.key === 'fairway_members' && e.newValue) setMembers(JSON.parse(e.newValue));
+      if (e.key === 'fairway_seasons' && e.newValue) setSeasons(JSON.parse(e.newValue));
+      if (e.key === 'fairway_facilities' && e.newValue) setFacilities(JSON.parse(e.newValue));
+      if (e.key === 'fairway_course_db' && e.newValue) setCourseDatabase(JSON.parse(e.newValue));
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -79,13 +77,29 @@ const App: React.FC = () => {
 
   const handleAddFacility = (facility: Facility) => {
     setFacilities(prev => {
-      if (prev.find(f => f.name === facility.name)) return prev;
+      if (prev.find(f => f.id === facility.id || f.name === facility.name)) return prev;
       return [...prev, facility];
     });
   };
 
   const handleRemoveFacility = (id: string) => {
     setFacilities(prev => prev.filter(f => f.id !== id));
+  };
+
+  const handleUpdateCourseDatabase = (entries: CourseDatabaseEntry[]) => {
+    setCourseDatabase(prev => {
+      const newMap = new Map(prev.map(e => [e.whsId, e]));
+      entries.forEach(e => {
+        if (e.whsId) {
+          newMap.set(e.whsId, e);
+        }
+      });
+      return Array.from(newMap.values());
+    });
+  };
+
+  const handleRemoveFromDatabase = (whsId: string) => {
+    setCourseDatabase(prev => prev.filter(e => e.whsId !== whsId));
   };
 
   const renderView = () => {
@@ -136,6 +150,9 @@ const App: React.FC = () => {
             onRemoveFacility={handleRemoveFacility}
             onPlanTournament={handlePlanTournament}
             savedFacilities={facilities}
+            courseDatabase={courseDatabase}
+            onUpdateCourseDatabase={handleUpdateCourseDatabase}
+            onRemoveFromDatabase={handleRemoveFromDatabase}
           />
         );
       case AppView.AI_PRO:

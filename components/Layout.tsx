@@ -1,143 +1,102 @@
-
 import React from 'react';
-import { AppView, Event as GolfEvent } from '../types';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Calendar, 
-  BarChart3, 
-  MessageSquareQuote,
-  Trophy,
-  LogOut,
-  ChevronRight,
-  Flag,
-  Search,
-  Bell
-} from 'lucide-react';
+import { ViewState } from '../types';
+import { Trophy, Users, Calendar, MapPin, LayoutDashboard, Menu, X, Flag } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
-  activeView: AppView;
-  setActiveView: (view: AppView) => void;
-  nextEvent?: GolfEvent | null;
+  currentView: ViewState;
+  setView: (view: ViewState) => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeView, setActiveView, nextEvent }) => {
-  const menuItems = [
-    { view: AppView.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
-    { view: AppView.MEMBERS, label: 'Members', icon: Users },
-    { view: AppView.SEASONS, label: 'Seasons', icon: Flag },
-    { view: AppView.COURSES, label: 'Course Search', icon: Search },
-    { view: AppView.EVENTS, label: 'Tournaments', icon: Calendar },
-    { view: AppView.STATS, label: 'Society Stats', icon: BarChart3 },
-    { view: AppView.AI_PRO, label: 'The Society Pro', icon: MessageSquareQuote },
-  ];
+const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
-  const activeLabel = menuItems.find(i => i.view === activeView)?.label;
-
-  const formattedDate = nextEvent 
-    ? new Date(nextEvent.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-    : '';
+  const NavItem = ({ view, icon: Icon, label }: { view: ViewState; icon: any; label: string }) => (
+    <button
+      onClick={() => {
+        setView(view);
+        setIsMobileMenuOpen(false);
+      }}
+      className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors w-full ${
+        currentView === view
+          ? 'bg-emerald-100 text-emerald-800 font-semibold'
+          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+      }`}
+    >
+      <Icon size={20} />
+      <span>{label}</span>
+    </button>
+  );
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 text-white flex flex-col z-50 shadow-2xl no-print">
-        <div className="p-6 flex items-center gap-3">
-          <div className="bg-emerald-500 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
-            <Trophy className="w-6 h-6 text-white" />
-          </div>
-          <span className="text-xl font-black tracking-tight uppercase">Fairway</span>
+    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+      {/* Mobile Header */}
+      <div className="md:hidden bg-white border-b border-gray-200 p-4 flex justify-between items-center sticky top-0 z-20">
+        <div className="flex items-center space-x-2 text-emerald-700 font-bold text-xl">
+          <Trophy size={24} />
+          <span>Fairway Society</span>
         </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-600">
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeView === item.view;
-            return (
-              <button
-                key={item.view}
-                onClick={() => setActiveView(item.view)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 group ${
-                  isActive 
-                  ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-900/40 translate-x-1' 
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800 hover:translate-x-1'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="w-5 h-5 transition-transform group-hover:scale-110" />
-                  <span className="font-bold text-sm tracking-tight">{item.label}</span>
-                </div>
-                {isActive && <ChevronRight className="w-4 h-4 animate-in slide-in-from-left-2" />}
-              </button>
-            );
-          })}
+      {/* Sidebar Navigation */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-10 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out md:translate-x-0 md:relative md:block ${
+          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-6 border-b border-gray-100 hidden md:flex items-center space-x-2 text-emerald-700 font-bold text-2xl">
+          <Trophy size={28} />
+          <span>Fairway</span>
+        </div>
+        
+        <nav className="p-4 space-y-2">
+          <NavItem view="DASHBOARD" icon={LayoutDashboard} label="Dashboard" />
+          <NavItem view="SEASONS" icon={Flag} label="Seasons" />
+          <NavItem view="TOURNAMENTS" icon={Calendar} label="Tournaments" />
+          <NavItem view="MEMBERS" icon={Users} label="Members" />
+          <NavItem view="LEAGUE" icon={Trophy} label="Global League" />
+          <NavItem view="COURSES" icon={MapPin} label="Course Finder" />
         </nav>
 
-        <div className="p-6 border-t border-slate-800">
-          <div className="flex items-center gap-3 mb-6 p-3 rounded-2xl bg-slate-800/40 border border-slate-700/50">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-black text-sm shadow-inner">
-              JD
-            </div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-black truncate leading-none mb-1">Jane Doe</p>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Admin</p>
-            </div>
+        <div className="absolute bottom-0 w-full p-6 border-t border-gray-100">
+          <div className="text-xs text-gray-400">
+            v2.0.0 &bull; Built with Gemini
           </div>
-          <button className="flex items-center gap-2 text-slate-500 hover:text-rose-400 transition-colors w-full px-2 group">
-            <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-xs font-black uppercase tracking-widest">Log out</span>
-          </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="ml-64 flex-1 overflow-y-auto">
-        <header className="h-40 relative sticky top-0 z-40 overflow-hidden shadow-lg no-print">
-          {/* Background Golf Image */}
-          <div className="absolute inset-0">
-            <img 
-              src="https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?auto=format&fit=crop&q=80&w=2070" 
-              alt="Golf Course Header" 
-              className="w-full h-full object-cover object-center scale-105 group-hover:scale-100 transition-transform duration-1000"
-            />
-            {/* Elegant Dark Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-900/60 to-transparent"></div>
-          </div>
-
-          <div className="relative h-full px-10 flex items-center justify-between text-white">
-            <div className="animate-in fade-in slide-in-from-left-8 duration-700">
-              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400 mb-1">Management Suite</p>
-              <h1 className="text-4xl font-black tracking-tighter">
-                {activeLabel}
-              </h1>
-            </div>
-
-            <div className="flex items-center gap-6 animate-in fade-in slide-in-from-right-8 duration-700">
-              <button 
-                onClick={() => setActiveView(AppView.EVENTS)}
-                className="hidden lg:flex flex-col items-end px-6 py-3 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl hover:bg-white/20 transition-all active:scale-95 text-right group"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Calendar className={`w-3 h-3 text-emerald-400 ${nextEvent ? 'animate-pulse' : ''}`} />
-                  <p className="text-[10px] text-white/60 font-black uppercase tracking-widest">Next Tournament</p>
-                </div>
-                <p className="text-sm font-black tracking-tight group-hover:text-emerald-400 transition-colors">
-                  {nextEvent ? `${nextEvent.title} • ${formattedDate}` : 'No Upcoming Events'}
-                </p>
-              </button>
-              
-              <button className="p-3 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 group">
-                <Bell className="w-5 h-5 group-hover:animate-bounce" />
-              </button>
+      <main className="flex-1 overflow-y-auto h-[calc(100vh-60px)] md:h-screen">
+        {/* Header Image */}
+        <div className="relative h-48 md:h-64 bg-gray-900">
+          <img 
+            src="https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?auto=format&fit=crop&q=80&w=2000" 
+            alt="Golf Course" 
+            className="w-full h-full object-cover opacity-60"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 to-transparent flex items-end">
+            <div className="p-6 md:p-8 max-w-6xl mx-auto w-full">
+               <h1 className="text-white text-3xl md:text-4xl font-bold shadow-sm">Fairway Society Manager</h1>
+               <p className="text-emerald-200 font-medium">Professional Management for Amateur Golf</p>
             </div>
           </div>
-        </header>
+        </div>
 
-        <div className="p-10 max-w-[1600px] mx-auto">
+        <div className="p-4 md:p-8 max-w-6xl mx-auto -mt-8 relative z-0">
           {children}
         </div>
       </main>
+
+      {/* Overlay for mobile menu */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-0 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
     </div>
   );
 };

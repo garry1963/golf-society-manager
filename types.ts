@@ -1,120 +1,77 @@
-
-export enum AppView {
-  DASHBOARD = 'DASHBOARD',
-  MEMBERS = 'MEMBERS',
-  EVENTS = 'EVENTS',
-  SEASONS = 'SEASONS',
-  COURSES = 'COURSES',
-  STATS = 'STATS',
-  AI_PRO = 'AI_PRO',
-  SEARCH = 'SEARCH'
+export enum ScoringType {
+  STABLEFORD = 'Stableford',
+  STROKE_PLAY = 'Stroke Play',
 }
 
-export interface CourseSpecs {
-  par: number;
-  length: string;
-  menSlope: number;
-  menRating: number;
-  womenSlope: number;
-  womenRating: number;
-  notableHole: string;
-  difficulty: 'Easy' | 'Moderate' | 'Challenging' | 'Elite';
-  description: string;
-  holePars: number[];
-}
-
-export interface GroundingSource {
-  title: string;
-  uri: string;
-}
-
-export interface Facility {
-  id: string;
-  name: string;
-  address: string;
-  usgaId?: string;
-  rating?: string;
-  courseStyle: string;
-  difficulty: string;
-  addedAt: string;
-  groundingSources?: GroundingSource[];
-}
-
-export interface CourseDatabaseEntry {
-  title: string;
-  address: string;
-  whsId: string;
-  difficulty: 'Easy' | 'Moderate' | 'Challenging' | 'Elite';
-  courseStyle: string;
-  isvVerified: boolean;
-  lastSynced: string;
-  uri: string;
-  insight: string;
-  groundingSources?: GroundingSource[];
-}
-
-export type ScoringSystem = 'points' | 'stableford' | 'medal';
-
-export interface Season {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  status: 'active' | 'planned' | 'completed';
-  totalEvents: number;
-  description: string;
-  scoringSystem?: ScoringSystem;
+export interface HandicapHistory {
+  date: string;
+  oldHandicap: number;
+  newHandicap: number;
+  reason: string;
 }
 
 export interface Member {
   id: string;
   name: string;
   handicap: number;
-  roundsPlayed: number;
   joinedDate: string;
-  bestScore: number;
-  avatar: string;
-  averageScore: number;
-  longestDrive: number;
-  gir: number; // Greens in Regulation percentage
-  handicapHistory?: { date: string; value: number }[];
+  email?: string;
+  phone?: string;
+  avatarUrl?: string;
+  handicapHistory: HandicapHistory[];
 }
 
-export interface Round {
-  id: string;
-  memberId: string;
-  strokes: number;
-  date: string;
-  course: string;
-  stablefordPoints?: number;
+export interface CourseHole {
+  number: number;
+  par: number;
+  index: number; // Stroke Index
 }
 
-export interface Event {
+export interface Course {
   id: string;
-  title: string;
-  date: string;
+  name: string;
+  par: number;
+  location?: string;
+  rating?: number;
+  slope?: number;
+  holes?: CourseHole[]; // Array of 18 holes
+}
+
+export interface Season {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface Tournament {
+  id: string;
+  name: string;
+  startDate: string;
   endDate?: string;
-  numberOfRounds?: number;
-  courseName: string;
-  location: string;
-  facilityId?: string;
-  status: 'upcoming' | 'completed';
-  participants: string[]; // Member IDs
-  results?: { memberId: string; score: number }[];
+  rounds: number;
   seasonId?: string;
-  lastReminderSent?: string;
-  isMajor?: boolean;
+  courseId: string;
+  scoringType: ScoringType;
+  completed: boolean;
+  rosterIds?: string[]; // Optional: if defined, only these members are in the event
 }
 
-export interface SocietyStats {
-  averageHandicap: number;
-  totalMembers: number;
-  upcomingEvents: number;
-  totalRoundsPlayed: number;
+export interface Score {
+  id: string;
+  tournamentId: string;
+  memberId: string;
+  grossScore?: number;
+  netScore?: number;
+  points?: number; 
+  holeScores?: number[]; // Array of 18 scores. 0 or null represents not played/scratch
 }
 
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  sources?: GroundingSource[];
+export interface SeasonResult {
+  memberId: string;
+  totalPoints: number;
+  eventsPlayed: number;
+  wins: number;
 }
+
+export type ViewState = 'DASHBOARD' | 'MEMBERS' | 'SEASONS' | 'TOURNAMENTS' | 'LEAGUE' | 'COURSES';

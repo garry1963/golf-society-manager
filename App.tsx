@@ -1,189 +1,237 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import Members from './components/Members';
-import Events from './components/Events';
+import Tournaments from './components/Tournaments';
+import LeagueTable from './components/LeagueTable';
+import CourseFinder from './components/CourseFinder';
 import Seasons from './components/Seasons';
-import CourseSearch from './components/CourseSearch';
-import AIPro from './components/AIPro';
-import { AppView, Facility, Event as GolfEvent, Member, Season, CourseDatabaseEntry } from './types';
-import { MOCK_EVENTS, MOCK_MEMBERS, MOCK_SEASONS } from './constants';
+import { ViewState, Member, Tournament, Course, Score, ScoringType, Season } from './types';
+
+// Helper to generate default holes
+const generateDefaultHoles = (par = 72) => {
+  return Array(18).fill(null).map((_, i) => ({
+    number: i + 1,
+    par: i < 4 ? 4 : (i < 13 ? 4 : 4), // Simplified distribution
+    index: i + 1
+  }));
+};
+
+// Mock Data
+const MOCK_MEMBERS: Member[] = [
+  { id: '1', name: 'Tiger Woods', handicap: 0.5, joinedDate: '2023-01-01', handicapHistory: [], email: 'tiger@golf.com' },
+  { id: '2', name: 'Rory McIlroy', handicap: -2.0, joinedDate: '2023-01-15', handicapHistory: [] },
+  { id: '3', name: 'Happy Gilmore', handicap: 18, joinedDate: '2023-02-01', handicapHistory: [] },
+];
+
+const MOCK_COURSES: Course[] = [
+  { id: 'c1', name: 'Augusta National', par: 72, holes: generateDefaultHoles(72) },
+  { id: 'c2', name: 'St Andrews', par: 72, holes: generateDefaultHoles(72) },
+  { id: 'c3', name: 'Pebble Beach', par: 71, holes: generateDefaultHoles(71) },
+];
 
 const App: React.FC = () => {
-  const [activeView, setActiveView] = useState<AppView>(AppView.DASHBOARD);
+  const [view, setView] = useState<ViewState>('DASHBOARD');
   
-  // --- Centralized State ---
-  const [events, setEvents] = useState<GolfEvent[]>(() => {
-    const saved = localStorage.getItem('fairway_events');
-    return saved ? JSON.parse(saved) : MOCK_EVENTS;
-  });
-
+  // State
   const [members, setMembers] = useState<Member[]>(() => {
-    const saved = localStorage.getItem('fairway_members');
+    const saved = localStorage.getItem('members');
     return saved ? JSON.parse(saved) : MOCK_MEMBERS;
+  });
+  
+  const [courses, setCourses] = useState<Course[]>(() => {
+    const saved = localStorage.getItem('courses');
+    return saved ? JSON.parse(saved) : MOCK_COURSES;
   });
 
   const [seasons, setSeasons] = useState<Season[]>(() => {
-    const saved = localStorage.getItem('fairway_seasons');
-    return saved ? JSON.parse(saved) : MOCK_SEASONS;
-  });
-
-  const [facilities, setFacilities] = useState<Facility[]>(() => {
-    const saved = localStorage.getItem('fairway_facilities');
+    const saved = localStorage.getItem('seasons');
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [courseDatabase, setCourseDatabase] = useState<CourseDatabaseEntry[]>(() => {
-    const saved = localStorage.getItem('fairway_course_db');
+  const [tournaments, setTournaments] = useState<Tournament[]>(() => {
+    const saved = localStorage.getItem('tournaments');
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [prefilledEvent, setPrefilledEvent] = useState<{ courseName: string, location: string, facilityId?: string } | null>(null);
+  const [scores, setScores] = useState<Score[]>(() => {
+    const saved = localStorage.getItem('scores');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  // --- Persistence ---
-  useEffect(() => {
-    localStorage.setItem('fairway_events', JSON.stringify(events));
-    localStorage.setItem('fairway_members', JSON.stringify(members));
-    localStorage.setItem('fairway_seasons', JSON.stringify(seasons));
-    localStorage.setItem('fairway_facilities', JSON.stringify(facilities));
-    localStorage.setItem('fairway_course_db', JSON.stringify(courseDatabase));
-  }, [events, members, seasons, facilities, courseDatabase]);
+  // Helper State for navigation with context
+  const [preSelectedSeasonId, setPreSelectedSeasonId] = useState<string | null>(null);
+  const [preSelectedCourseId, setPreSelectedCourseId] = useState<string | null>(null);
 
-  // Sync state from other tabs/windows only
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'fairway_events' && e.newValue) setEvents(JSON.parse(e.newValue));
-      if (e.key === 'fairway_members' && e.newValue) setMembers(JSON.parse(e.newValue));
-      if (e.key === 'fairway_seasons' && e.newValue) setSeasons(JSON.parse(e.newValue));
-      if (e.key === 'fairway_facilities' && e.newValue) setFacilities(JSON.parse(e.newValue));
-      if (e.key === 'fairway_course_db' && e.newValue) setCourseDatabase(JSON.parse(e.newValue));
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  // Persistence
+  useEffect(() => { localStorage.setItem('members', JSON.stringify(members)); }, [members]);
+  useEffect(() => { localStorage.setItem('courses', JSON.stringify(courses)); }, [courses]);
+  useEffect(() => { localStorage.setItem('seasons', JSON.stringify(seasons)); }, [seasons]);
+  useEffect(() => { localStorage.setItem('tournaments', JSON.stringify(tournaments)); }, [tournaments]);
+  useEffect(() => { localStorage.setItem('scores', JSON.stringify(scores)); }, [scores]);
 
-  const nextEvent = useMemo(() => {
-    return events
-      .filter(e => e.status === 'upcoming')
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] || null;
-  }, [events]);
-
-  // --- Actions ---
-  const handlePlanTournament = (courseName: string, location: string, facilityId?: string) => {
-    setPrefilledEvent({ courseName, location, facilityId });
-    setActiveView(AppView.EVENTS);
+  const handleAddCourse = (course: Course) => {
+    // Check for duplicates by name roughly
+    if (!courses.some(c => c.name === course.name)) {
+      setCourses(prev => [...prev, course]);
+    }
   };
 
-  const handleAddFacility = (facility: Facility) => {
-    setFacilities(prev => {
-      if (prev.find(f => f.id === facility.id || f.name === facility.name)) return prev;
-      return [...prev, facility];
+  const handleCreateEventFromCourse = (course: Course) => {
+    let courseId = course.id;
+    const existing = courses.find(c => c.name === course.name);
+    
+    if (existing) {
+      courseId = existing.id;
+    } else {
+      setCourses(prev => [...prev, course]);
+    }
+    
+    setPreSelectedCourseId(courseId);
+    setView('TOURNAMENTS');
+  };
+
+  const handleScheduleInSeason = (seasonId: string) => {
+    setPreSelectedSeasonId(seasonId);
+    setView('TOURNAMENTS');
+  };
+
+  // Handicap Calculation Logic
+  const handleFinalizeTournament = (tournament: Tournament, tScores: Score[]) => {
+    const updatedMembers = [...members];
+    
+    tScores.forEach(score => {
+      const memberIndex = updatedMembers.findIndex(m => m.id === score.memberId);
+      if (memberIndex === -1) return;
+      
+      const member = updatedMembers[memberIndex];
+      let newHandicap = member.handicap;
+      let changeReason = `Tournament: ${tournament.name}`;
+      
+      // Society General Play Rules (Simplified WHS)
+      if (tournament.scoringType === ScoringType.STABLEFORD && score.points !== undefined) {
+         // Buffer Zone: 32-36 points (inclusive)
+         if (score.points > 36) {
+           // Cut: 0.3 per point above 36
+           const diff = score.points - 36;
+           newHandicap -= (diff * 0.3);
+         } else if (score.points < 32) {
+           // Increase: 0.1 total
+           newHandicap += 0.1;
+         }
+      } else if (tournament.scoringType === ScoringType.STROKE_PLAY && score.grossScore !== undefined) {
+         const net = score.grossScore - member.handicap;
+         const course = courses.find(c => c.id === tournament.courseId);
+         const par = course?.par || 72;
+         
+         if (net < par) {
+           // Cut
+           const diff = par - net;
+           newHandicap -= (diff * 0.3);
+         } else if (net > par + 4) { // Buffer of 4
+           newHandicap += 0.1;
+         }
+      }
+
+      // Round to 1 decimal
+      newHandicap = Math.round(newHandicap * 10) / 10;
+      
+      // Update history only if changed (or force record it?)
+      // Let's record every tournament play for history tracking even if no change
+      const historyEntry = {
+        date: tournament.startDate,
+        oldHandicap: member.handicap,
+        newHandicap: newHandicap,
+        reason: changeReason
+      };
+
+      updatedMembers[memberIndex] = {
+        ...member,
+        handicap: newHandicap,
+        handicapHistory: [...(member.handicapHistory || []), historyEntry]
+      };
     });
-  };
 
-  const handleRemoveFacility = (id: string) => {
-    setFacilities(prev => prev.filter(f => f.id !== id));
-  };
-
-  const handleUpdateCourseDatabase = (entries: CourseDatabaseEntry[]) => {
-    setCourseDatabase(prev => {
-      const newMap = new Map(prev.map(e => [e.whsId, e]));
-      entries.forEach(e => {
-        if (e.whsId) {
-          newMap.set(e.whsId, e);
-        }
-      });
-      return Array.from(newMap.values());
-    });
-  };
-
-  const handleRemoveFromDatabase = (whsId: string) => {
-    setCourseDatabase(prev => prev.filter(e => e.whsId !== whsId));
+    setMembers(updatedMembers);
+    
+    // Mark completed
+    const updatedTournaments = tournaments.map(t => 
+       t.id === tournament.id ? { ...t, completed: true } : t
+    );
+    setTournaments(updatedTournaments);
   };
 
   const renderView = () => {
-    switch (activeView) {
-      case AppView.DASHBOARD:
-        return (
-          <Dashboard 
-            events={events} 
-            members={members} 
-            onManageEvent={() => setActiveView(AppView.EVENTS)} 
-          />
-        );
-      case AppView.MEMBERS:
-        return (
-          <Members 
-            members={members} 
-            setMembers={setMembers} 
-          />
-        );
-      case AppView.EVENTS:
-        return (
-          <Events 
-            events={events}
-            setEvents={setEvents}
-            members={members}
-            setMembers={setMembers}
-            seasons={seasons}
-            prefilled={prefilledEvent} 
-            onModalClose={() => setPrefilledEvent(null)} 
-            savedFacilities={facilities}
-            onSearchCourse={() => setActiveView(AppView.COURSES)}
-          />
-        );
-      case AppView.SEASONS:
+    switch (view) {
+      case 'DASHBOARD':
+        // Calculate simple Global Leaderboard for dashboard
+        const stats: Record<string, number> = {};
+        members.forEach(m => stats[m.id] = 0);
+        tournaments.filter(t => t.completed).forEach(t => {
+           const tScores = scores.filter(s => s.tournamentId === t.id);
+           tScores.sort((a,b) => (b.points || 0) - (a.points || 0)); // Default sort
+           tScores.forEach((s, idx) => {
+             const points = [25, 18, 15, 12, 10][idx] || 0;
+             if(stats[s.memberId] !== undefined) stats[s.memberId] += points;
+           });
+        });
+        const dashboardLeaderboard = Object.entries(stats)
+           .map(([id, total]) => ({ memberId: id, totalPoints: total, eventsPlayed: 0, wins: 0 }))
+           .sort((a,b) => b.totalPoints - a.totalPoints);
+
+        return <Dashboard members={members} tournaments={tournaments} leaderboard={dashboardLeaderboard} onNavigate={setView} />;
+      
+      case 'MEMBERS':
+        return <Members members={members} setMembers={setMembers} scores={scores} tournaments={tournaments} />;
+      
+      case 'SEASONS':
         return (
           <Seasons 
-            seasons={seasons}
-            setSeasons={setSeasons}
-            events={events}
-            setEvents={setEvents}
-            members={members}
-          />
-        );
-      case AppView.COURSES:
-        return (
-          <CourseSearch 
-            onSaveFacility={handleAddFacility} 
-            onRemoveFacility={handleRemoveFacility}
-            onPlanTournament={handlePlanTournament}
-            savedFacilities={facilities}
-            courseDatabase={courseDatabase}
-            onUpdateCourseDatabase={handleUpdateCourseDatabase}
-            onRemoveFromDatabase={handleRemoveFromDatabase}
-          />
-        );
-      case AppView.AI_PRO:
-        return <AIPro />;
-      case AppView.STATS:
-        return (
-          <div className="bg-white p-12 rounded-3xl border border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-              <span className="text-3xl">📊</span>
-            </div>
-            <h3 className="text-lg font-bold text-slate-800">In-Depth Analytics Coming Soon</h3>
-            <p className="text-slate-500 text-sm max-w-xs mt-2">We are currently crunching the data for advanced society performance metrics.</p>
-          </div>
-        );
-      default:
-        return (
-          <Dashboard 
-            events={events} 
+            seasons={seasons} 
+            setSeasons={setSeasons} 
+            tournaments={tournaments} 
             members={members} 
-            onManageEvent={() => setActiveView(AppView.EVENTS)} 
+            scores={scores}
+            onScheduleTournament={handleScheduleInSeason}
           />
         );
+
+      case 'TOURNAMENTS':
+        return (
+          <Tournaments 
+            tournaments={tournaments} 
+            setTournaments={setTournaments}
+            courses={courses}
+            members={members}
+            scores={scores}
+            setScores={setScores}
+            seasons={seasons}
+            onFinalizeTournament={handleFinalizeTournament}
+            preSelectedSeasonId={preSelectedSeasonId}
+            preSelectedCourseId={preSelectedCourseId}
+            onClearPreSelectedCourse={() => setPreSelectedCourseId(null)}
+          />
+        );
+      
+      case 'LEAGUE':
+        return <LeagueTable members={members} tournaments={tournaments} scores={scores} />;
+      
+      case 'COURSES':
+        return (
+          <CourseFinder 
+            courses={courses} 
+            onAddCourse={handleAddCourse} 
+            onCreateEvent={handleCreateEventFromCourse} 
+          />
+        );
+        
+      default:
+        return <Dashboard members={members} tournaments={tournaments} leaderboard={[]} onNavigate={setView} />;
     }
   };
 
   return (
-    <Layout 
-      activeView={activeView} 
-      setActiveView={setActiveView}
-      nextEvent={nextEvent}
-    >
+    <Layout currentView={view} setView={setView}>
       {renderView()}
     </Layout>
   );
